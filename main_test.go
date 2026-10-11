@@ -102,7 +102,7 @@ func TestRunHelpPrintsUsageWithoutLaunchingTUI(t *testing.T) {
 		t.Fatalf("run(--help) error = %v", err)
 	}
 	out := buf.String()
-	for _, want := range []string{"Usage", "--week-start", "--storage", "j / k"} {
+	for _, want := range []string{"Usage", "--week-start", "--storage", "j / k", "overlay"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("usage output missing %q:\n%s", want, out)
 		}

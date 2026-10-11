@@ -99,12 +99,17 @@ Flags:
   --week-start sun|mon first day of the week (default: sun)
   --help               show this help and exit
 
-Keys:
-  j / k   move focus down / up one day
-  h / l   previous / next month
-  Enter   add an event for the focused day (Enter again to save)
-  Esc     cancel the current event input
-  q       quit
+Keys (calendar):
+  j / k, ↑/↓   move focus down / up one day
+  h / l, ←/→   previous / next month
+  Enter        open the highlighted day (overlay)
+  q            quit
+Keys (day overlay):
+  j / k, ↑/↓   move between notes
+  a / Enter    add a note (Enter saves, Esc cancels)
+  d / x        delete the selected note
+  Esc          back to the calendar
+Minimum terminal size: 80x24.
 `, version)
 }
 
