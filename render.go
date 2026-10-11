@@ -6,15 +6,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 )
-
-// maxEventLines caps how many event preview lines are shown per day cell.
-const maxEventLines = 4
-
-// colWidthCap bounds every grid column so one huge title cannot blow up the
-// whole layout; longer previews are ellipsized.
-const colWidthCap = 20
 
 // View implements tea.Model.
 func (m *Model) View() string {
@@ -54,6 +48,9 @@ func dayPadding(w, day int) string {
 // truncateToWidth cuts s to fit w displayed cells, appending an ellipsis when
 // it does not fit.
 func truncateToWidth(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
 	if runewidth.StringWidth(s) <= w {
 		return s
 	}
@@ -70,52 +67,118 @@ func truncateToWidth(s string, w int) string {
 	return b.String() + "…"
 }
 
-// previewLines renders up to maxEventLines preview strings for a day, adding a
-// "+N more" indicator when events are dropped.
-func previewLines(evs []Event) []string {
-	if len(evs) == 0 {
+// padToWidth truncates s ANSI-aware to w cells and then right-pads with spaces
+// so every line of the result is exactly w displayed cells wide. It operates
+// per line because ansi.Truncate counts cells cumulatively across newlines.
+func padToWidth(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	for i, ln := range lines {
+		ln = ansi.Truncate(ln, w, "")
+		if n := ansi.StringWidth(ln); n < w {
+			ln += strings.Repeat(" ", w-n)
+		}
+		lines[i] = ln
+	}
+	return strings.Join(lines, "\n")
+}
+
+// boxPreviewLines renders up to max preview lines for a day's events within
+// width cells, adding a "+N more" marker when events overflow.
+func boxPreviewLines(evs []Event, max, width int) []string {
+	if max <= 0 || len(evs) == 0 {
 		return nil
 	}
 	var out []string
-	for i, e := range evs {
-		if i >= maxEventLines {
-			break
+	if len(evs) <= max {
+		for _, e := range evs {
+			out = append(out, truncateToWidth("• "+e.Title, width))
 		}
-		if i == maxEventLines-1 && len(evs) > maxEventLines {
-			out = append(out, fmt.Sprintf("+%d more", len(evs)-i))
-			break
-		}
-		title := e.Title
-		if e.Time != "" {
-			title = e.Time + " " + title
-		}
-		out = append(out, "• "+title)
+		return out
 	}
+	for i := 0; i < max-1; i++ {
+		out = append(out, truncateToWidth("• "+evs[i].Title, width))
+	}
+	out = append(out, truncateToWidth(fmt.Sprintf("+%d more", len(evs)-(max-1)), width))
 	return out
 }
 
 // cell holds the pre-rendered content for one grid position.
 type cell struct {
 	day      int      // 0 when the cell is blank (outside the displayed month)
-	previews []string // event preview lines
+	previews []string // event preview lines, already clipped to the box width
 	today    bool
 	focus    bool
 }
 
-// Render lays out the month grid, prompt line, and help footer. It is pure and
-// deterministic: with PlainTheme (no colors) tests get stable output.
-func Render(m Model, theme Theme) string {
+// renderDayBox renders one bordered day cell with an innerW x innerH content
+// area. Every box is drawn at the same size regardless of its content.
+func renderDayBox(cl cell, innerW, innerH int, theme Theme) string {
+	lines := make([]string, 0, innerH)
+	lines = append(lines, pad(dayPadding(innerW, cl.day), innerW))
+	for i := 0; i < innerH-1; i++ {
+		if i < len(cl.previews) {
+			lines = append(lines, pad(cl.previews[i], innerW))
+		} else {
+			lines = append(lines, strings.Repeat(" ", innerW))
+		}
+	}
+	style := theme.DayBox
+	switch {
+	case cl.focus:
+		style = theme.DayBoxFocus
+	case cl.today:
+		style = theme.DayBoxToday
+	}
+	return style.Width(innerW).Height(innerH).Render(strings.Join(lines, "\n"))
+}
+
+// tooSmallScreen centers the minimum-size message in a w x h canvas.
+func tooSmallScreen(w, h int, theme Theme) string {
+	msg := fmt.Sprintf("Terminal too small (%d×%d); need at least %d×%d", w, h, minWidth, minHeight)
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, theme.Help.Render(msg))
+}
+
+// renderMonth lays out the full-screen month grid of equal day boxes. It is
+// pure and deterministic: with PlainTheme (no colors) tests get stable output.
+func renderMonth(m Model, theme Theme) string {
+	W, H := m.dims()
+	if m.tooSmall() {
+		return tooSmallScreen(W, H, theme)
+	}
 	now := m.now()
 	weeks := GridWeeks(m.Month, m.WeekStart)
 	names := weekdayNames(m.WeekStart)
 
-	colWidth := 0
-	for _, n := range names {
-		if w := runewidth.StringWidth(n); w > colWidth {
-			colWidth = w
-		}
+	footerLines := 1
+	if m.Status != "" {
+		footerLines++
+	}
+	gridH := H - 2 - 1 - footerLines // title + header + blank separator + footer
+	if gridH < weeks {
+		gridH = weeks
+	}
+	boxH := gridH / weeks
+	leftoverV := gridH - boxH*weeks
+	innerH := boxH - 2
+	if innerH < 1 {
+		innerH = 1
 	}
 
+	boxW := W / 7
+	if boxW < 3 {
+		boxW = 3
+	}
+	innerW := boxW - 2
+	gridW := boxW * 7
+	leftPad := (W - gridW) / 2
+	if leftPad < 0 {
+		leftPad = 0
+	}
+
+	// Build the cell matrix.
 	grid := make([][]cell, weeks)
 	for i := 0; i < weeks; i++ {
 		grid[i] = make([]cell, 7)
@@ -127,93 +190,55 @@ func Render(m Model, theme Theme) string {
 				cl.day = date.Day()
 				cl.today = key == DateKey(now)
 				cl.focus = key == DateKey(m.Focus)
-				cl.previews = previewLines(m.Events[key])
+				cl.previews = boxPreviewLines(m.Events[key], innerH-1, innerW)
 			}
 			grid[i][c] = cl
-			if w := runewidth.StringWidth(fmt.Sprintf("%d", cl.day)); w > colWidth {
-				colWidth = w
-			}
-			for _, ln := range cl.previews {
-				if w := runewidth.StringWidth(ln); w > colWidth {
-					colWidth = w
-				}
-			}
 		}
 	}
-	if colWidth > colWidthCap {
-		colWidth = colWidthCap
-	}
 
-	totalWidth := 7*colWidth + 6*2 // 6 gaps of two spaces
+	var out []string
 
-	var b strings.Builder
-
-	// Title line, centered.
+	// Title, centered over the terminal.
 	title := theme.Title.Render(FormatTitle(m.Month.Year(), m.Month.Month()))
-	b.WriteString(lipgloss.PlaceHorizontal(totalWidth, lipgloss.Center, title))
-	b.WriteByte('\n')
+	out = append(out, padToWidth(lipgloss.PlaceHorizontal(W, lipgloss.Center, title), W))
 
-	// Weekday header.
-	for c, n := range names {
-		if c > 0 {
-			b.WriteString("  ")
-		}
-		b.WriteString(theme.Header.Render(pad(n, colWidth)))
+	// Weekday header, each name centered in its box column.
+	var hb strings.Builder
+	hb.WriteString(strings.Repeat(" ", leftPad))
+	for _, n := range names {
+		hb.WriteString(lipgloss.PlaceHorizontal(boxW, lipgloss.Center, theme.Header.Render(n)))
 	}
-	b.WriteByte('\n')
+	out = append(out, padToWidth(hb.String(), W))
 
 	// Grid rows.
 	for i := 0; i < weeks; i++ {
-		maxLines := 1
+		boxes := make([]string, 7)
 		for c := 0; c < 7; c++ {
-			if n := 1 + len(grid[i][c].previews); n > maxLines {
-				maxLines = n
-			}
+			boxes[c] = renderDayBox(grid[i][c], innerW, innerH, theme)
 		}
-		for ln := 0; ln < maxLines; ln++ {
-			for c := 0; c < 7; c++ {
-				if c > 0 {
-					b.WriteString("  ")
-				}
-				cl := grid[i][c]
-				switch {
-				case ln == 0:
-					padded := dayPadding(colWidth, cl.day)
-					switch {
-					case cl.focus:
-						b.WriteString(theme.Focus.Render(padded))
-					case cl.today:
-						b.WriteString(theme.Today.Render(padded))
-					default:
-						b.WriteString(padded)
-					}
-				case ln-1 < len(cl.previews):
-					b.WriteString(theme.Event.Render(pad(truncateToWidth(cl.previews[ln-1], colWidth), colWidth)))
-				default:
-					b.WriteString(strings.Repeat(" ", colWidth))
-				}
-			}
-			b.WriteByte('\n')
-		}
+		row := strings.Repeat(" ", leftPad) + lipgloss.JoinHorizontal(lipgloss.Top, boxes...)
+		out = append(out, padToWidth(row, W))
 	}
 
-	// Blank separator, optional prompt line, help footer.
-	b.WriteByte('\n')
-	if m.Prompting {
-		marker := ""
-		if m.CursorOn {
-			marker = "▌"
-		}
-		b.WriteString(theme.Help.Render(fmt.Sprintf("Add event for %s: %s%s", DateKey(m.Focus), m.Input, marker)))
-		b.WriteByte('\n')
+	// Absorb the leftover rows so the grid stays bottom-aligned.
+	for i := 0; i < leftoverV; i++ {
+		out = append(out, padToWidth("", W))
 	}
-	b.WriteString(theme.Help.Render(fmt.Sprintf("j/k move · h/l months · Enter add · Esc cancel · q quit · %s",
-		now.Format("Mon 2006-01-02 15:04"))))
-	b.WriteByte('\n')
+
+	// Blank separator, help footer, optional status line.
+	out = append(out, padToWidth("", W))
+	help := fmt.Sprintf("j/k move · h/l months · Enter open day · q quit · %s",
+		now.Format("Mon 2006-01-02 15:04"))
+	out = append(out, padToWidth(theme.Help.Render(help), W))
 	if m.Status != "" {
-		b.WriteString(theme.Help.Render("⚠ " + m.Status))
-		b.WriteByte('\n')
+		out = append(out, padToWidth(theme.Help.Render("⚠ "+m.Status), W))
 	}
 
-	return b.String()
+	return strings.Join(out, "\n")
+}
+
+// Render renders the current view. It is pure and takes the theme by value so
+// tests can pin deterministic output with PlainTheme.
+func Render(m Model, theme Theme) string {
+	return renderMonth(m, theme)
 }

@@ -12,6 +12,11 @@ type Theme struct {
 	Focus  lipgloss.Style
 	Event  lipgloss.Style
 	Help   lipgloss.Style
+
+	// Day-box borders for the wall-calendar grid.
+	DayBox      lipgloss.Style
+	DayBoxFocus lipgloss.Style
+	DayBoxToday lipgloss.Style
 }
 
 // DefaultTheme is the colored theme used by the running program.
@@ -22,8 +27,17 @@ var DefaultTheme = Theme{
 	Focus:  lipgloss.NewStyle().Bold(true).Reverse(true),
 	Event:  lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
 	Help:   lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
+
+	DayBox:      lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240")),
+	DayBoxFocus: lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("212")).Bold(true),
+	DayBoxToday: lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("170")),
 }
 
 // PlainTheme renders without foreground/background so tests get deterministic
-// output regardless of terminal color support.
-var PlainTheme = Theme{}
+// output regardless of terminal color support. Box borders are kept so the
+// grid structure is visible in plain text.
+var PlainTheme = Theme{
+	DayBox:      lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
+	DayBoxFocus: lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
+	DayBoxToday: lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
+}
