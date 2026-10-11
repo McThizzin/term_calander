@@ -7,6 +7,15 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// Terminal-size limits and defaults. The grid needs a floor to render equal
+// boxes; before the first WindowSizeMsg the model falls back to the default.
+const (
+	defaultWidth  = 80
+	defaultHeight = 24
+	minWidth      = 80
+	minHeight     = 24
+)
+
 // Model is the Bubble Tea application state.
 type Model struct {
 	Title       string             // formatted month title, e.g. "January 2025"
@@ -21,6 +30,8 @@ type Model struct {
 	CursorOn    bool               // blink state for the input cursor
 	Status      string             // transient user-facing status, e.g. save errors
 	Now         func() time.Time   // injectable clock (defaults to time.Now)
+	Width       int                // terminal columns; 0 until the first WindowSizeMsg
+	Height      int                // terminal rows; 0 until the first WindowSizeMsg
 }
 
 // cursorToggleMsg flips the input cursor blink state.
@@ -72,6 +83,25 @@ func (m *Model) now() time.Time {
 // FocusedDay returns the currently focused day.
 func (m *Model) FocusedDay() time.Time { return m.Focus }
 
+// dims returns the terminal size, falling back to a default before the first
+// WindowSizeMsg arrives.
+func (m *Model) dims() (int, int) {
+	w, h := m.Width, m.Height
+	if w <= 0 {
+		w = defaultWidth
+	}
+	if h <= 0 {
+		h = defaultHeight
+	}
+	return w, h
+}
+
+// tooSmall reports whether the terminal cannot show the full grid.
+func (m *Model) tooSmall() bool {
+	w, h := m.dims()
+	return w < minWidth || h < minHeight
+}
+
 // AddEvent appends a trimmed, non-empty event to day's list.
 func (m *Model) AddEvent(title string, day time.Time) {
 	title = strings.TrimSpace(title)
@@ -96,6 +126,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case errMsg:
 		m.Status = "save failed: " + string(msg)
+		return m, nil
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		m.Height = msg.Height
 		return m, nil
 	case tea.KeyMsg:
 		return m, m.handleKey(msg)

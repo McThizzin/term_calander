@@ -253,3 +253,33 @@ func TestSaveErrorSetsStatusAndRenderShowsIt(t *testing.T) {
 		t.Fatalf("Status = %q after successful save, want empty", m2.Status)
 	}
 }
+
+func TestWindowSizeMsgStoresDimensions(t *testing.T) {
+	m, _ := newTestModel(t, "2025-01-10")
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	if m.Width != 120 || m.Height != 40 {
+		t.Fatalf("dims = %dx%d, want 120x40", m.Width, m.Height)
+	}
+}
+
+func TestDimsFallbackAndTooSmall(t *testing.T) {
+	m, _ := newTestModel(t, "2025-01-10")
+	if w, h := m.dims(); w != defaultWidth || h != defaultHeight {
+		t.Fatalf("unset dims = %dx%d, want %dx%d", w, h, defaultWidth, defaultHeight)
+	}
+	if m.tooSmall() {
+		t.Fatal("unset dims should not be too small")
+	}
+	m.Width, m.Height = minWidth-1, minHeight
+	if !m.tooSmall() {
+		t.Fatalf("%dx%d should be too small", m.Width, m.Height)
+	}
+	m.Width, m.Height = minWidth, minHeight-1
+	if !m.tooSmall() {
+		t.Fatalf("%dx%d should be too small", m.Width, m.Height)
+	}
+	m.Width, m.Height = minWidth, minHeight
+	if m.tooSmall() {
+		t.Fatal("exactly the minimum should not be too small")
+	}
+}
