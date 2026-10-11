@@ -100,8 +100,8 @@ Flags:
   --help               show this help and exit
 
 Keys (calendar):
-  j / k, ↑/↓   move focus down / up one day
-  h / l, ←/→   previous / next month
+  h/j/k/l, arrows   move focus (h/l previous/next day, k/j previous/next week)
+  n/p               next/previous month
   Enter        open the highlighted day (overlay)
   q            quit
 Keys (day overlay):

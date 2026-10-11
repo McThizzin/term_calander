@@ -220,16 +220,16 @@ func (m *Model) handleMonthKey(k tea.KeyMsg) tea.Cmd {
 		m.openDay(m.Focus)
 		return nil
 	case tea.KeyUp:
-		m.moveFocus(-1)
+		m.moveFocus(-7)
 		return nil
 	case tea.KeyDown:
-		m.moveFocus(1)
+		m.moveFocus(7)
 		return nil
 	case tea.KeyLeft:
-		m.shiftMonth(-1)
+		m.moveFocus(-1)
 		return nil
 	case tea.KeyRight:
-		m.shiftMonth(1)
+		m.moveFocus(1)
 		return nil
 	case tea.KeyRunes:
 		return m.handleMonthRunes(k.Runes)
@@ -237,20 +237,26 @@ func (m *Model) handleMonthKey(k tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-// handleMonthRunes maps j/k/h/l to navigation and q to quit.
+// handleMonthRunes maps h/j/k/l to directional grid movement: h/left and
+// l/right move one day, k/up and j/down move one week. n/p navigate months,
+// q quits.
 func (m *Model) handleMonthRunes(runes []rune) tea.Cmd {
 	for _, r := range runes {
 		switch r {
-		case 'q':
+		case 'q', 'Q':
 			return tea.Quit
-		case 'j':
-			m.moveFocus(1)
-		case 'k':
+		case 'j', 'J':
+			m.moveFocus(7)
+		case 'k', 'K':
+			m.moveFocus(-7)
+		case 'h', 'H':
 			m.moveFocus(-1)
-		case 'h':
-			m.shiftMonth(-1)
-		case 'l':
+		case 'l', 'L':
+			m.moveFocus(1)
+		case 'n', 'N':
 			m.shiftMonth(1)
+		case 'p', 'P':
+			m.shiftMonth(-1)
 		}
 	}
 	return nil
@@ -291,10 +297,14 @@ func (m *Model) handleDayRunes(runes []rune) tea.Cmd {
 		switch r {
 		case 'q':
 			return tea.Quit
-		case 'j':
+		case 'j', 'J':
 			m.moveNoteSel(1)
-		case 'k':
+		case 'k', 'K':
 			m.moveNoteSel(-1)
+		case 'h', 'H':
+			m.moveNoteSel(-1)
+		case 'l', 'L':
+			m.moveNoteSel(1)
 		case 'a':
 			m.Editing = true
 			m.Input = ""

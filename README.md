@@ -31,8 +31,11 @@ path. If the user config directory is unavailable it falls back to
 
 | Key | Action |
 |---|---|
-| `j` / `k` / `↑` / `↓` | move focus down/up |
-| `h` / `l` / `←` / `→` | previous/next month |
+| `h` / `←` | move focus one day left (previous day) |
+| `l` / `→` | move focus one day right (next day) |
+| `k` / `↑` | move focus one week up (same weekday) |
+| `j` / `↓` | move focus one week down (same weekday) |
+| `n` / `p` | next / previous month |
 | `Enter` | open the highlighted day (day overlay) |
 | `q` / `Ctrl-C` | quit |
 
@@ -40,7 +43,7 @@ path. If the user config directory is unavailable it falls back to
 
 | Key | Action |
 |---|---|
-| `j` / `k` / `↑` / `↓` | move between notes |
+| `h` / `j` / `k` / `l` / `←` / `↓` / `↑` / `→` | move between notes |
 | `a` or `Enter` | add a new note; `Enter` saves, `Esc` cancels |
 | `d` or `x` | delete the selected note |
 | `Esc` | return to the calendar |

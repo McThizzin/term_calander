@@ -59,42 +59,68 @@ func TestAddEventTrimsAndSkipsEmpty(t *testing.T) {
 	}
 }
 
-func TestMoveFocusClampsWithinDisplayedMonth(t *testing.T) {
-	m, _ := newTestModel(t, "2025-01-15")
-	// down
-	m.Update(keyRunes("j"))
-	if DateKey(m.Focus) != "2025-01-16" {
-		t.Fatalf("after j focus = %s, want 2025-01-16", DateKey(m.Focus))
+func TestDirectionalKeysMoveByDayAndWeek(t *testing.T) {
+	m, _ := newTestModel(t, "2025-01-15") // Wednesday
+	// h / left: one day back
+	m.Update(keyRunes("h"))
+	if DateKey(m.Focus) != "2025-01-14" {
+		t.Fatalf("after h focus = %s, want 2025-01-14", DateKey(m.Focus))
 	}
-	// up
+	// l / right: one day forward
+	m.Update(keyRunes("l"))
+	if DateKey(m.Focus) != "2025-01-15" {
+		t.Fatalf("after l focus = %s, want 2025-01-15", DateKey(m.Focus))
+	}
+	// j / down: one week forward (same weekday)
+	m.Update(keyRunes("j"))
+	if DateKey(m.Focus) != "2025-01-22" {
+		t.Fatalf("after j focus = %s, want 2025-01-22", DateKey(m.Focus))
+	}
+	// k / up: one week back (same weekday)
 	m.Update(keyRunes("k"))
 	if DateKey(m.Focus) != "2025-01-15" {
 		t.Fatalf("after k focus = %s, want 2025-01-15", DateKey(m.Focus))
 	}
-	// clamp at top of month
+}
+
+func TestMoveFocusClampsWithinDisplayedMonth(t *testing.T) {
+	m, _ := newTestModel(t, "2025-01-15")
+	// clamp at top of month: up a week from Jan 1 would leave the month
 	m.Focus = mustDate(t, "2025-01-01")
 	m.Update(keyRunes("k"))
 	if DateKey(m.Focus) != "2025-01-01" {
-		t.Fatalf("up past first day moved focus to %s, want clamp 2025-01-01", DateKey(m.Focus))
+		t.Fatalf("up past first week moved focus to %s, want clamp 2025-01-01", DateKey(m.Focus))
 	}
-	// clamp at bottom of month
+	// clamp at bottom of month: down a week from Jan 31 would leave the month
 	m.Focus = mustDate(t, "2025-01-31")
 	m.Update(keyRunes("j"))
 	if DateKey(m.Focus) != "2025-01-31" {
-		t.Fatalf("down past last day moved focus to %s, want clamp 2025-01-31", DateKey(m.Focus))
+		t.Fatalf("down past last week moved focus to %s, want clamp 2025-01-31", DateKey(m.Focus))
+	}
+	// left from the first day would leave the month
+	m.Focus = mustDate(t, "2025-01-01")
+	m.Update(keyRunes("h"))
+	if DateKey(m.Focus) != "2025-01-01" {
+		t.Fatalf("left past first day moved focus to %s, want clamp 2025-01-01", DateKey(m.Focus))
+	}
+	// right from the last day would leave the month
+	m.Focus = mustDate(t, "2025-01-31")
+	m.Update(keyRunes("l"))
+	if DateKey(m.Focus) != "2025-01-31" {
+		t.Fatalf("right past last day moved focus to %s, want clamp 2025-01-31", DateKey(m.Focus))
 	}
 }
 
 func TestShiftMonthUpdatesTitleAndFocus(t *testing.T) {
 	m, _ := newTestModel(t, "2025-01-31")
-	m.Update(keyRunes("l"))
+	m.Update(keyRunes("n"))
 	if m.Title != "February 2025" {
 		t.Fatalf("Title = %q, want February 2025", m.Title)
 	}
 	if DateKey(m.Focus) != "2025-02-28" {
 		t.Fatalf("focus after next-month = %s, want re-anchored 2025-02-28", DateKey(m.Focus))
 	}
-	m.Update(keyRunes("h"))
+	m.Update(keyRunes("p"))
 	if m.Title != "January 2025" {
 		t.Fatalf("Title = %q, want January 2025", m.Title)
 	}
@@ -242,22 +268,28 @@ func TestQQuitsInMonthAndListButTypesWhileAdding(t *testing.T) {
 }
 
 func TestArrowKeysNavigate(t *testing.T) {
-	m, _ := newTestModel(t, "2025-01-10")
+	m, _ := newTestModel(t, "2025-01-15")
+	// Down / Up move a whole week
 	m.Update(keyType(tea.KeyDown))
-	if DateKey(m.Focus) != "2025-01-11" {
-		t.Fatalf("Down focus = %s", DateKey(m.Focus))
+	if DateKey(m.Focus) != "2025-01-22" {
+		t.Fatalf("Down focus = %s, want +1 week (2025-01-22)", DateKey(m.Focus))
 	}
 	m.Update(keyType(tea.KeyUp))
-	if DateKey(m.Focus) != "2025-01-10" {
-		t.Fatalf("Up focus = %s", DateKey(m.Focus))
+	if DateKey(m.Focus) != "2025-01-15" {
+		t.Fatalf("Up focus = %s, want back to 2025-01-15", DateKey(m.Focus))
 	}
+	// Right / Left move a single day
 	m.Update(keyType(tea.KeyRight))
-	if m.Title != "February 2025" {
-		t.Fatalf("Right title = %q", m.Title)
+	if DateKey(m.Focus) != "2025-01-16" {
+		t.Fatalf("Right focus = %s, want +1 day (2025-01-16)", DateKey(m.Focus))
 	}
 	m.Update(keyType(tea.KeyLeft))
+	if DateKey(m.Focus) != "2025-01-15" {
+		t.Fatalf("Left focus = %s, want back to 2025-01-15", DateKey(m.Focus))
+	}
+	// arrows navigate days within the month; they do not change the month
 	if m.Title != "January 2025" {
-		t.Fatalf("Left title = %q", m.Title)
+		t.Fatalf("arrows changed the month title to %q, want January 2025", m.Title)
 	}
 }
 

@@ -156,7 +156,7 @@ func renderMonth(m Model, theme Theme) string {
 	if m.Status != "" {
 		footerLines++
 	}
-	gridH := H - 2 - 1 - footerLines // title + header + blank separator + footer
+	gridH := H - 2 - 1 - 1 - footerLines // title + extra space + header + blank separator + footer
 	if gridH < weeks {
 		gridH = weeks
 	}
@@ -201,6 +201,7 @@ func renderMonth(m Model, theme Theme) string {
 	// Title, centered over the terminal.
 	title := theme.Title.Render(FormatTitle(m.Month.Year(), m.Month.Month()))
 	out = append(out, padToWidth(lipgloss.PlaceHorizontal(W, lipgloss.Center, title), W))
+	out = append(out, padToWidth("", W)) // add extra spacing between title and header/columns
 
 	// Weekday header, each name centered in its box column.
 	var hb strings.Builder
@@ -227,7 +228,7 @@ func renderMonth(m Model, theme Theme) string {
 
 	// Blank separator, help footer, optional status line.
 	out = append(out, padToWidth("", W))
-	help := fmt.Sprintf("j/k move · h/l months · Enter open day · q quit · %s",
+	help := fmt.Sprintf("hjkl/arrows move · n/p months · Enter open day · q quit · %s",
 		now.Format("Mon 2006-01-02 15:04"))
 	out = append(out, padToWidth(theme.Help.Render(help), W))
 	if m.Status != "" {
