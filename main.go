@@ -108,6 +108,15 @@ Keys:
 `, version)
 }
 
+// loadWarning returns user-facing text when path exists but cannot be read
+// (corrupt or unreadable), or an empty string when loading is fine.
+func loadWarning(path string) string {
+	if _, err := Load(path); err != nil {
+		return fmt.Sprintf("could not read %s (%v); starting empty", path, err)
+	}
+	return ""
+}
+
 // run parses args, prints a startup hint, and launches the TUI.
 func run(args []string, stdout io.Writer) error {
 	opt, err := parseOptions(args)
@@ -120,6 +129,9 @@ func run(args []string, stdout io.Writer) error {
 	}
 	storagePath := resolveStoragePath(opt.StoragePath)
 	fmt.Fprintf(stdout, "term-calendar %s: events stored at %s\n", version, storagePath)
+	if w := loadWarning(storagePath); w != "" {
+		fmt.Fprintln(stdout, "term-calendar: warning: "+w)
+	}
 
 	m := NewModelWithWeekStart(storagePath, opt.Start, opt.WeekStart)
 	p := tea.NewProgram(&m, tea.WithAltScreen())

@@ -27,15 +27,17 @@ path. If the user config directory is unavailable it falls back to
 
 | Key | Action |
 |---|---|
-| `j` / `↓` | move focus down one calendar day |
-| `k` / `↑` | move focus up one calendar day |
-| `h` / `←` | previous month |
-| `l` / `→` | next month |
+| `j` | move focus down one calendar day |
+| `k` | move focus up one calendar day |
+| `h` | previous month |
+| `l` | next month |
 | `Enter` | open the "add event" input for the focused day |
 | `Enter` (typing) | save the event to the focused day (persists immediately) |
 | `Backspace` (typing) | delete the last typed character |
 | `Esc` (typing) | cancel the current input, discarding it |
 | `q` / `Ctrl-C` | quit |
+
+Arrow keys are not bound; use `j`/`k`/`h`/`l`.
 
 Focus is clamped to the displayed month, so moving past the first/last day
 does nothing. Changing months re-anchors focus to the same day-of-month

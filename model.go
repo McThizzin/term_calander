@@ -19,6 +19,7 @@ type Model struct {
 	Prompting   bool               // true while the add-event input is open
 	WeekStart   time.Weekday       // first column of the grid (Sunday or Monday)
 	CursorOn    bool               // blink state for the input cursor
+	Status      string             // transient user-facing status, e.g. save errors
 	Now         func() time.Time   // injectable clock (defaults to time.Now)
 }
 
@@ -90,8 +91,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case cursorToggleMsg:
 		m.CursorOn = !m.CursorOn
 		return m, blinkCmd()
-	case savedMsg, errMsg:
-		// Persistence outcome: nothing extra to do in the MVP.
+	case savedMsg:
+		m.Status = ""
+		return m, nil
+	case errMsg:
+		m.Status = "save failed: " + string(msg)
 		return m, nil
 	case tea.KeyMsg:
 		return m, m.handleKey(msg)
@@ -128,6 +132,9 @@ func (m *Model) handlePromptKey(k tea.KeyMsg) tea.Cmd {
 		if r := []rune(m.Input); len(r) > 0 {
 			m.Input = string(r[:len(r)-1])
 		}
+		return nil
+	case tea.KeySpace:
+		m.Input += " "
 		return nil
 	case tea.KeyEnter:
 		return m.submit()

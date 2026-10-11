@@ -8,5 +8,8 @@
 # scratch / test fixtures
 /testdata/
 
+# compiled binary produced by `go build`
+/term-calendar
+
 # superpowers execution workspace (also self-ignored)
 .superpowers/

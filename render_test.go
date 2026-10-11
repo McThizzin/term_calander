@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 )
 
 func fixedModel(t *testing.T, start, now string) (Model, string) {
@@ -126,5 +128,48 @@ func TestRenderCapsEventPreviewsWithMoreIndicator(t *testing.T) {
 	out := Render(m, PlainTheme)
 	if !strings.Contains(out, "+3 more") {
 		t.Errorf("expected an overflow indicator for 6 events (max 4 lines):\n%s", out)
+	}
+}
+
+// Regression: cells with double-width characters (CJK) must keep every grid
+// row at the same *displayed* width, not just the same rune count.
+func TestRenderEqualDisplayWidthWithWideCharacters(t *testing.T) {
+	m, _ := fixedModel(t, "2025-01-10", "2025-01-10")
+	m.Events = map[string][]Event{
+		"2025-01-10": {{Title: "中文标题"}},
+		"2025-01-12": {{Title: "plain"}},
+	}
+	out := Render(m, PlainTheme)
+	lines := strings.Split(out, "\n")
+	weeks := GridWeeks(m.Month, m.WeekStart)
+	rows := lines[2 : 2+weeks]
+	w := runewidth.StringWidth(rows[0])
+	if w == 0 {
+		t.Fatal("grid row display width is zero")
+	}
+	for i, r := range rows {
+		if got := runewidth.StringWidth(r); got != w {
+			t.Errorf("grid row %d displayed width = %d, want %d\nrow=%q", i, got, w, r)
+		}
+	}
+}
+
+// Regression: long event titles must be clamped to a sane column width with an
+// ellipsis instead of inflating every column.
+func TestRenderCapsColumnWidthForLongTitles(t *testing.T) {
+	long := "abcdefghijklmnopqrstuvwxyz0123456789"
+	m, _ := fixedModel(t, "2025-01-10", "2025-01-10")
+	m.Events = map[string][]Event{"2025-01-10": {{Title: long}}}
+	out := Render(m, PlainTheme)
+	lines := strings.Split(out, "\n")
+	weeks := GridWeeks(m.Month, m.WeekStart)
+	rows := lines[2 : 2+weeks]
+	total := utf8.RuneCountInString(rows[0])
+	col := (total - 12) / 7
+	if col > colWidthCap {
+		t.Errorf("column width = %d, want capped at %d", col, colWidthCap)
+	}
+	if !strings.Contains(out, "…") {
+		t.Errorf("expected an ellipsis for an over-long title:\n%s", out)
 	}
 }

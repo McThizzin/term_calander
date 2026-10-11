@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -219,5 +220,36 @@ func TestCursorBlinksOnToggleMsgOnly(t *testing.T) {
 	// a navigation key must not itself schedule a blink chain
 	if _, cmd := m.Update(keyRunes("j")); cmd != nil {
 		t.Fatalf("navigation key returned cmd %v, want nil", cmd)
+	}
+}
+
+// Regression: bubbletea classifies a lone space press as KeySpace, not
+// KeyRunes; it must still be typed into the event input.
+func TestSpacebarTypesIntoInput(t *testing.T) {
+	m, _ := newTestModel(t, "2025-01-10")
+	m.Update(keyType(tea.KeyEnter))
+	m.Update(keyType(tea.KeySpace))
+	m.Update(keyRunes("ok"))
+	if m.Input != " ok" {
+		t.Fatalf("Input = %q, want %q", m.Input, " ok")
+	}
+}
+
+// Regression: save failures must surface to the user, not vanish.
+func TestSaveErrorSetsStatusAndRenderShowsIt(t *testing.T) {
+	m, _ := newTestModel(t, "2025-01-10")
+	m.Update(errMsg("disk full"))
+	if !strings.Contains(m.Status, "disk full") {
+		t.Fatalf("Status = %q, want it to mention the save failure", m.Status)
+	}
+	out := Render(*m, PlainTheme)
+	if !strings.Contains(out, "disk full") {
+		t.Errorf("render output missing save error status:\n%s", out)
+	}
+
+	m2, _ := newTestModel(t, "2025-01-10")
+	m2.Update(savedMsg{})
+	if m2.Status != "" {
+		t.Fatalf("Status = %q after successful save, want empty", m2.Status)
 	}
 }

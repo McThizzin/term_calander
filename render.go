@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 // maxEventLines caps how many event preview lines are shown per day cell.
 const maxEventLines = 4
+
+// colWidthCap bounds every grid column so one huge title cannot blow up the
+// whole layout; longer previews are ellipsized.
+const colWidthCap = 20
 
 // View implements tea.Model.
 func (m *Model) View() string {
@@ -27,9 +31,9 @@ func weekdayNames(start time.Weekday) []string {
 	return out
 }
 
-// pad right-pads s with spaces to w display cells (rune count).
+// pad right-pads s with spaces to w displayed cells.
 func pad(s string, w int) string {
-	if n := utf8.RuneCountInString(s); n < w {
+	if n := runewidth.StringWidth(s); n < w {
 		return s + strings.Repeat(" ", w-n)
 	}
 	return s
@@ -41,10 +45,29 @@ func dayPadding(w, day int) string {
 		return strings.Repeat(" ", w)
 	}
 	s := fmt.Sprintf("%d", day)
-	if n := utf8.RuneCountInString(s); n < w {
+	if n := runewidth.StringWidth(s); n < w {
 		return strings.Repeat(" ", w-n) + s
 	}
 	return s
+}
+
+// truncateToWidth cuts s to fit w displayed cells, appending an ellipsis when
+// it does not fit.
+func truncateToWidth(s string, w int) string {
+	if runewidth.StringWidth(s) <= w {
+		return s
+	}
+	var b strings.Builder
+	width := 0
+	for _, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if width+rw > w-1 {
+			break
+		}
+		width += rw
+		b.WriteRune(r)
+	}
+	return b.String() + "…"
 }
 
 // previewLines renders up to maxEventLines preview strings for a day, adding a
@@ -88,7 +111,7 @@ func Render(m Model, theme Theme) string {
 
 	colWidth := 0
 	for _, n := range names {
-		if w := utf8.RuneCountInString(n); w > colWidth {
+		if w := runewidth.StringWidth(n); w > colWidth {
 			colWidth = w
 		}
 	}
@@ -107,15 +130,18 @@ func Render(m Model, theme Theme) string {
 				cl.previews = previewLines(m.Events[key])
 			}
 			grid[i][c] = cl
-			if w := utf8.RuneCountInString(fmt.Sprintf("%d", cl.day)); w > colWidth {
+			if w := runewidth.StringWidth(fmt.Sprintf("%d", cl.day)); w > colWidth {
 				colWidth = w
 			}
 			for _, ln := range cl.previews {
-				if w := utf8.RuneCountInString(ln); w > colWidth {
+				if w := runewidth.StringWidth(ln); w > colWidth {
 					colWidth = w
 				}
 			}
 		}
+	}
+	if colWidth > colWidthCap {
+		colWidth = colWidthCap
 	}
 
 	totalWidth := 7*colWidth + 6*2 // 6 gaps of two spaces
@@ -162,7 +188,7 @@ func Render(m Model, theme Theme) string {
 						b.WriteString(padded)
 					}
 				case ln-1 < len(cl.previews):
-					b.WriteString(theme.Event.Render(pad(cl.previews[ln-1], colWidth)))
+					b.WriteString(theme.Event.Render(pad(truncateToWidth(cl.previews[ln-1], colWidth), colWidth)))
 				default:
 					b.WriteString(strings.Repeat(" ", colWidth))
 				}
@@ -184,6 +210,10 @@ func Render(m Model, theme Theme) string {
 	b.WriteString(theme.Help.Render(fmt.Sprintf("j/k move · h/l months · Enter add · Esc cancel · q quit · %s",
 		now.Format("Mon 2006-01-02 15:04"))))
 	b.WriteByte('\n')
+	if m.Status != "" {
+		b.WriteString(theme.Help.Render("⚠ " + m.Status))
+		b.WriteByte('\n')
+	}
 
 	return b.String()
 }

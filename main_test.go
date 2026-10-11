@@ -115,3 +115,26 @@ func TestRunBadFlagReturnsError(t *testing.T) {
 		t.Fatal("run(bad flag) error = nil, want error")
 	}
 }
+
+func TestLoadWarning(t *testing.T) {
+	if w := loadWarning(filepath.Join(t.TempDir(), "does-not-exist.json")); w != "" {
+		t.Errorf("loadWarning(missing) = %q, want empty", w)
+	}
+	path := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if w := loadWarning(path); !strings.Contains(w, "could not read") {
+		t.Errorf("loadWarning(corrupt) = %q, want warning containing could not read", w)
+	}
+	if w := loadWarning(renderFixturePath()); w != "" {
+		t.Errorf("loadWarning(valid) = %q, want empty", w)
+	}
+}
+
+// renderFixturePath writes a small valid calendar file for loadWarning tests.
+func renderFixturePath() string {
+	path := filepath.Join(os.TempDir(), "term-calendar-test-fixture.json")
+	_ = saveCalendar(path, EmptyCalendar())
+	return path
+}
