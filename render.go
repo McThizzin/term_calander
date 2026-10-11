@@ -240,5 +240,168 @@ func renderMonth(m Model, theme Theme) string {
 // Render renders the current view. It is pure and takes the theme by value so
 // tests can pin deterministic output with PlainTheme.
 func Render(m Model, theme Theme) string {
+	if m.Mode == ViewDay {
+		return renderDay(m, theme)
+	}
 	return renderMonth(m, theme)
+}
+
+// renderDay renders the calendar with the single-day overlay composited on top.
+// It never composites when the terminal is too small.
+func renderDay(m Model, theme Theme) string {
+	W, H := m.dims()
+	if m.tooSmall() {
+		return tooSmallScreen(W, H, theme)
+	}
+	bg := renderMonth(m, theme)
+	bgLines := strings.Split(bg, "\n")
+	for i := range bgLines {
+		n := ansi.StringWidth(bgLines[i])
+		if n < W {
+			bgLines[i] += strings.Repeat(" ", W-n)
+		}
+	}
+	for len(bgLines) < H {
+		bgLines = append(bgLines, strings.Repeat(" ", W))
+	}
+	if len(bgLines) > H {
+		bgLines = bgLines[:H]
+	}
+
+	panelW := W - 4
+	if panelW > 64 {
+		panelW = 64
+	}
+	panelH := H - 2
+	if panelH > 18 {
+		panelH = 18
+	}
+	if panelW < 20 || panelH < 7 {
+		panelW, panelH = W, H
+	}
+	panel := renderPanel(m, theme, panelW, panelH)
+	return composeOverlay(strings.Join(bgLines, "\n"), panel, W, H, theme)
+}
+
+// renderPanel draws the day overlay panel of size panelW x panelH cells.
+func renderPanel(m Model, theme Theme, panelW, panelH int) string {
+	if panelW <= 0 || panelH <= 0 {
+		return ""
+	}
+	innerW := panelW - 2
+	innerH := panelH - 2
+	if innerW < 1 {
+		innerW = 1
+	}
+	if innerH < 1 {
+		innerH = 1
+	}
+	var lines []string
+	title := theme.Title.Render(m.Focus.Format("Monday 2006-01-02"))
+	lines = append(lines, padToWidth(lipgloss.PlaceHorizontal(innerW, lipgloss.Center, title), innerW))
+	lines = append(lines, padToWidth("", innerW))
+	evs := m.dayEvents()
+	footerH := 1
+	if m.Editing {
+		footerH = 2
+	}
+	bodyH := innerH - 2 - footerH
+	if bodyH < 1 {
+		bodyH = 1
+	}
+	if len(evs) == 0 {
+		lines = append(lines, padToWidth("(no notes)", innerW))
+		for i := 0; i < bodyH-1; i++ {
+			lines = append(lines, padToWidth("", innerW))
+		}
+	} else {
+		off := 0
+		if m.NoteSel >= bodyH && bodyH > 0 {
+			off = m.NoteSel - bodyH + 1
+		}
+		if off < 0 {
+			off = 0
+		}
+		visible := evs[off:]
+		if len(visible) > bodyH {
+			visible = visible[:bodyH]
+		}
+		for i, e := range visible {
+			abs := off + i
+			prefix := "  "
+			if abs == m.NoteSel {
+				prefix = "> "
+			}
+			lines = append(lines, padToWidth(truncateToWidth(prefix+e.Title, innerW), innerW))
+		}
+		for i := len(visible); i < bodyH; i++ {
+			lines = append(lines, padToWidth("", innerW))
+		}
+	}
+	if m.Editing {
+		footer := "New note: "
+		footer += m.Input
+		if m.CursorOn {
+			footer += theme.Cursor.Render("▌")
+		}
+		lines = append(lines, padToWidth(truncateToWidth(footer, innerW), innerW))
+		lines = append(lines, padToWidth(truncateToWidth("Enter save · Esc cancel", innerW), innerW))
+	} else {
+		footer := "j/k select · a add · d delete · Esc close"
+		lines = append(lines, padToWidth(truncateToWidth(footer, innerW), innerW))
+	}
+	for len(lines) < innerH {
+		lines = append(lines, padToWidth("", innerW))
+	}
+	if len(lines) > innerH {
+		lines = lines[:innerH]
+	}
+	return theme.Overlay.Width(innerW).Height(innerH).Render(strings.Join(lines, "\n"))
+}
+
+// composeOverlay composites the panel over a dimmed background.
+func composeOverlay(bg, panel string, w, h int, theme Theme) string {
+	bgLines := strings.Split(bg, "\n")
+	panelLines := strings.Split(panel, "\n")
+	panelW := ansi.StringWidth(panelLines[0])
+	if panelW == 0 {
+		panelW = 1
+	}
+	panelH := len(panelLines)
+	left := (w - panelW) / 2
+	top := (h - panelH) / 2
+	if left < 0 {
+		left = 0
+	}
+	if top < 0 {
+		top = 0
+	}
+	out := make([]string, len(bgLines))
+	for i := range bgLines {
+		ln := bgLines[i]
+		n := ansi.StringWidth(ln)
+		if n < w {
+			ln += strings.Repeat(" ", w-n)
+		}
+		dimmed := theme.Dim.Render(ln)
+		if i >= top && i < top+panelH {
+			p := panelLines[i-top]
+			leftPart := ansi.Cut(dimmed, 0, left)
+			rightStart := left + panelW
+			if rightStart > w {
+				rightStart = w
+			}
+			rightPart := ansi.Cut(dimmed, rightStart, w)
+			out[i] = leftPart + p + rightPart
+		} else {
+			out[i] = dimmed
+		}
+	}
+	for len(out) < h {
+		out = append(out, strings.Repeat(" ", w))
+	}
+	if len(out) > h {
+		out = out[:h]
+	}
+	return strings.Join(out, "\n")
 }

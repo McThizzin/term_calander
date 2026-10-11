@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -122,5 +124,78 @@ func TestRenderTooSmallShowsMessage(t *testing.T) {
 	out := Render(m, PlainTheme)
 	if !strings.Contains(strings.ToLower(out), "too small") {
 		t.Fatalf("expected a too-small message:\n%s", out)
+	}
+}
+
+func TestRenderOverlayShowsNotesAndSelection(t *testing.T) {
+	m := sizedModel(t, "2025-01-10", "2025-01-10", 100, 40)
+	m.Events = map[string][]Event{"2025-01-10": {{Title: "Party"}, {Title: "Gym"}}}
+	m.Mode = ViewDay
+	m.NoteSel = 1
+	out := Render(m, PlainTheme)
+	for _, want := range []string{"2025-01-10", "Party", "Gym", "> Gym"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("overlay missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRenderOverlayEmptyShowsPlaceholder(t *testing.T) {
+	m := sizedModel(t, "2025-01-10", "2025-01-10", 100, 40)
+	m.Mode = ViewDay
+	if out := Render(m, PlainTheme); !strings.Contains(out, "(no notes)") {
+		t.Fatalf("empty overlay missing placeholder:\n%s", out)
+	}
+}
+
+func TestRenderOverlayAddModeShowsInput(t *testing.T) {
+	m := sizedModel(t, "2025-01-10", "2025-01-10", 100, 40)
+	m.Mode = ViewDay
+	m.Editing = true
+	m.Input = "Call"
+	m.CursorOn = true
+	out := Render(m, PlainTheme)
+	if !strings.Contains(out, "New note") || !strings.Contains(out, "Call") {
+		t.Fatalf("add-mode overlay missing input:\n%s", out)
+	}
+}
+
+func TestRenderOverlayLinesStayWithinPanelWidth(t *testing.T) {
+	m := sizedModel(t, "2025-01-10", "2025-01-10", 100, 40)
+	m.Mode = ViewDay
+	m.Events = map[string][]Event{"2025-01-10": {{Title: strings.Repeat("wide-title-", 30)}}}
+	out := Render(m, PlainTheme)
+	for _, ln := range strings.Split(out, "\n") {
+		if w := runewidth.StringWidth(ln); w != 100 {
+			t.Errorf("line width %d, want 100 (overlay must not overflow): %q", w, ln)
+		}
+	}
+	if !strings.Contains(out, "…") {
+		t.Fatalf("over-long note title should be ellipsized:\n%s", out)
+	}
+}
+
+func TestRenderOverlaySelectionScrollsIntoView(t *testing.T) {
+	m := sizedModel(t, "2025-01-10", "2025-01-10", 100, 40)
+	m.Mode = ViewDay
+	evs := make([]Event, 30)
+	for i := range evs {
+		evs[i] = Event{Title: fmt.Sprintf("note-%02d", i)}
+	}
+	m.Events = map[string][]Event{"2025-01-10": evs}
+	m.NoteSel = 29
+	out := Render(m, PlainTheme)
+	if !strings.Contains(out, "> note-29") {
+		t.Fatalf("selected note not scrolled into view:\n%s", out)
+	}
+}
+
+func TestRenderOverlayResizeDoesNotPanicAndFallsBack(t *testing.T) {
+	m := sizedModel(t, "2025-01-10", "2025-01-10", 120, 50)
+	m.Mode = ViewDay
+	_ = Render(m, PlainTheme)
+	m.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
+	if out := Render(m, PlainTheme); !strings.Contains(strings.ToLower(out), "too small") {
+		t.Fatalf("shrunk overlay should show too-small message:\n%s", out)
 	}
 }

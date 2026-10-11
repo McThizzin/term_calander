@@ -17,6 +17,11 @@ type Theme struct {
 	DayBox      lipgloss.Style
 	DayBoxFocus lipgloss.Style
 	DayBoxToday lipgloss.Style
+
+	// Day overlay.
+	Overlay lipgloss.Style
+	Dim     lipgloss.Style
+	Cursor  lipgloss.Style
 }
 
 // DefaultTheme is the colored theme used by the running program.
@@ -31,6 +36,10 @@ var DefaultTheme = Theme{
 	DayBox:      lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240")),
 	DayBoxFocus: lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("212")).Bold(true),
 	DayBoxToday: lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("170")),
+
+	Overlay: lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("212")),
+	Dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("238")),
+	Cursor:  lipgloss.NewStyle().Reverse(true),
 }
 
 // PlainTheme renders without foreground/background so tests get deterministic
@@ -40,4 +49,8 @@ var PlainTheme = Theme{
 	DayBox:      lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
 	DayBoxFocus: lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
 	DayBoxToday: lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
+
+	Overlay: lipgloss.NewStyle().Border(lipgloss.NormalBorder()),
+	Dim:     lipgloss.NewStyle(),
+	Cursor:  lipgloss.NewStyle(),
 }
