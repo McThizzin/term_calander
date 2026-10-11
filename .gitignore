@@ -1,0 +1,12 @@
+# version control internals
+.git/
+
+# event storage (default config-dir path + CWD fallback)
+*.calendar.json
+.calendar.json
+
+# scratch / test fixtures
+/testdata/
+
+# superpowers execution workspace (also self-ignored)
+.superpowers/
